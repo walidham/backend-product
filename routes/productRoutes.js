@@ -1,24 +1,37 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import Product from "../models/product.js";
 
 const router = Router();
 
+// ✅ CRÉER LE DOSSIER UPLOADS S'IL N'EXISTE PAS
+const uploadsDir = "uploads";
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log("✅ Uploads directory created");
+}
+
 // stockage local ./uploads
 const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, "uploads/"),
-  filename: (_, file, cb) => {
+  destination: (req, file, cb) => {
+    // Vérifier à nouveau au moment de l'upload
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const base = path.basename(file.originalname, ext).replace(/\s+/g, "_");
     cb(null, `${Date.now()}_${base}${ext}`);
   }
 });
 
-// Dans productRoutes.js
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     console.log("=== FILE RECEIVED ===");
     console.log("fieldname:", file.fieldname);
@@ -26,11 +39,11 @@ const upload = multer({
     console.log("mimetype:", file.mimetype);
     console.log("====================");
     
-    // ✅ Accepter image/* et les types spécifiques
-    if (file.mimetype === 'image/*' || /image\/(png|jpe?g|webp)/.test(file.mimetype)) {
+    // Accepter image/* et les types spécifiques
+    if (file.mimetype === 'image/*' || /image\/(png|jpe?g|webp|gif)/.test(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`Only images are allowed. Received mimetype: ${file.mimetype}, filename: ${file.originalname}`));
+      cb(new Error(`Only images are allowed. Received mimetype: ${file.mimetype}`));
     }
   }
 });
@@ -54,6 +67,9 @@ router.post("/", upload.single("image"), async (req, res) => {
       return res.status(400).json({ message: "name and price required" });
     }
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    
+    console.log("✅ Product created with image:", imageUrl);
+    
     const product = await Product.create({
       name,
       description,
@@ -62,6 +78,7 @@ router.post("/", upload.single("image"), async (req, res) => {
     });
     res.status(201).json(product);
   } catch (e) {
+    console.error("❌ Error creating product:", e);
     res.status(500).json({ message: e.message });
   }
 });
@@ -74,13 +91,13 @@ router.put("/:id", upload.single("image"), async (req, res) => {
     if (description != null) update.description = description;
     if (price != null) update.price = Number(price);
     if (req.file) update.imageUrl = `/uploads/${req.file.filename}`;
-
     const product = await Product.findByIdAndUpdate(req.params.id, update, {
       new: true
     });
     if (!product) return res.status(404).json({ message: "Not found" });
     res.json(product);
   } catch (e) {
+    console.error("❌ Error updating product:", e);
     res.status(500).json({ message: e.message });
   }
 });
