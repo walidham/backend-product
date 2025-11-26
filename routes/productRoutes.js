@@ -20,18 +20,16 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    // LOG DÉTAILLÉ
     console.log("=== FILE RECEIVED ===");
     console.log("fieldname:", file.fieldname);
     console.log("originalname:", file.originalname);
     console.log("mimetype:", file.mimetype);
-    console.log("encoding:", file.encoding);
     console.log("====================");
     
-    if (/image\/(png|jpe?g|webp)/.test(file.mimetype)) {
+    // ✅ Accepter image/* et les types spécifiques
+    if (file.mimetype === 'image/*' || /image\/(png|jpe?g|webp)/.test(file.mimetype)) {
       cb(null, true);
     } else {
-      // Afficher plus d'infos dans l'erreur
       cb(new Error(`Only images are allowed. Received mimetype: ${file.mimetype}, filename: ${file.originalname}`));
     }
   }
